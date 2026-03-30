@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      run: make lint
+    format-check:
+      run: make format
+    test:
+      run: make test
+    archgate:
+      run: command -v archgate &>/dev/null && archgate check --staged || echo "archgate not installed, skipping"
+      skip:
+        - merge
+        - rebase

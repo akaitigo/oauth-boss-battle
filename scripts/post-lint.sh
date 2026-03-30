@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+input="$(cat)"
+file="$(jq -r '.tool_input.file_path // .tool_input.path // empty' <<< "$input")"
+
+# Go files
+case "$file" in
+  *.go)
+    cd "$(git rev-parse --show-toplevel 2>/dev/null || dirname "$file")"
+    if ! command -v golangci-lint &>/dev/null; then
+      go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest 2>/dev/null || { echo "WARN: golangci-lint install failed" >&2; exit 0; }
+    fi
+    if ! command -v gofumpt &>/dev/null; then
+      go install mvdan.cc/gofumpt@latest 2>/dev/null || true
+    fi
+    golangci-lint run --fix "$file" >/dev/null 2>&1 || true
+    diag="$(golangci-lint run "$file" 2>&1 | head -20)"
+    if [ -n "$diag" ]; then
+      jq -Rn --arg msg "$diag" \
+        '{ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: $msg } }'
+    fi
+    ;;
+  *.ts|*.tsx|*.js|*.jsx)
+    cd "$(git rev-parse --show-toplevel 2>/dev/null || dirname "$file")"
+    if command -v oxlint &>/dev/null; then
+      diag="$(oxlint "$file" 2>&1 | head -20)" || true
+      if [ -n "$diag" ]; then
+        jq -Rn --arg msg "$diag" \
+          '{ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: $msg } }'
+      fi
+    fi
+    ;;
+  *)
+    exit 0
+    ;;
+esac

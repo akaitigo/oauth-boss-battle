@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build output
+dist/
+build/
+*.exe
+*.out
+
+# Go
+coverage.out
+*.test
+
+# Environment
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Secrets
+credentials.json
+secrets.yml
+secrets.yaml
+*.pem
+*.key
+*.p12
+*.pfx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Claude backup
+CLAUDE.backup.md
