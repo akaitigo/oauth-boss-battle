@@ -38,6 +38,14 @@ func main() {
 	mux.HandleFunc("POST /api/boss/2/verify", boss2.Verify)
 	mux.HandleFunc("POST /api/boss/2/generate-state", boss2.GenerateState)
 
+	// Boss 3: Nonce Replay Attack
+	boss3 := boss.NewBoss3Handler()
+	mux.HandleFunc("POST /api/boss/3/authorize", boss3.Authorize)
+	mux.HandleFunc("POST /api/boss/3/token", boss3.Token)
+	mux.HandleFunc("POST /api/boss/3/replay", boss3.Replay)
+	mux.HandleFunc("POST /api/boss/3/verify", boss3.Verify)
+	mux.HandleFunc("POST /api/boss/3/generate-nonce", boss3.GenerateNonce)
+
 	handler := middleware.CORS(mux)
 
 	log.Printf("Server starting on :%s", port)
