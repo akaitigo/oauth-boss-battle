@@ -46,6 +46,14 @@ func main() {
 	mux.HandleFunc("POST /api/boss/3/verify", boss3.Verify)
 	mux.HandleFunc("POST /api/boss/3/generate-nonce", boss3.GenerateNonce)
 
+	// Boss 4: JWKS Rotation Failure
+	boss4 := boss.NewBoss4Handler()
+	mux.HandleFunc("POST /api/boss/4/jwks", boss4.JWKS)
+	mux.HandleFunc("POST /api/boss/4/rotate", boss4.Rotate)
+	mux.HandleFunc("POST /api/boss/4/sign", boss4.Sign)
+	mux.HandleFunc("POST /api/boss/4/verify", boss4.Verify)
+	mux.HandleFunc("POST /api/boss/4/configure-cache", boss4.ConfigureCache)
+
 	handler := middleware.CORS(mux)
 
 	log.Printf("Server starting on :%s", port)
