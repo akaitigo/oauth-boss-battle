@@ -58,7 +58,7 @@ export function BossSelect() {
 			<div style={{ display: "grid", gap: 16, marginTop: 24 }}>
 				{BOSSES.map((boss) => {
 					const defeated = isDefeated(boss.id);
-					const available = boss.id <= 4; // Bosses 1-4 are available
+					const available = boss.id <= 5; // All bosses available
 					return (
 						<div
 							key={boss.id}

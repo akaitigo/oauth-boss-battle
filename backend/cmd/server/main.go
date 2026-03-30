@@ -54,6 +54,14 @@ func main() {
 	mux.HandleFunc("POST /api/boss/4/verify", boss4.Verify)
 	mux.HandleFunc("POST /api/boss/4/configure-cache", boss4.ConfigureCache)
 
+	// Boss 5: Logout Hell
+	boss5 := boss.NewBoss5Handler()
+	mux.HandleFunc("POST /api/boss/5/login", boss5.Login)
+	mux.HandleFunc("POST /api/boss/5/sessions", boss5.Sessions)
+	mux.HandleFunc("POST /api/boss/5/logout-frontchannel", boss5.LogoutFrontChannel)
+	mux.HandleFunc("POST /api/boss/5/logout-backchannel", boss5.LogoutBackChannel)
+	mux.HandleFunc("POST /api/boss/5/verify", boss5.Verify)
+
 	handler := middleware.CORS(mux)
 
 	log.Printf("Server starting on :%s", port)
