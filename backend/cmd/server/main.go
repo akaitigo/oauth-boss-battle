@@ -30,6 +30,14 @@ func main() {
 	mux.HandleFunc("POST /api/boss/1/token", boss1.Token)
 	mux.HandleFunc("POST /api/boss/1/verify", boss1.Verify)
 
+	// Boss 2: State Mismatch (CSRF)
+	boss2 := boss.NewBoss2Handler()
+	mux.HandleFunc("POST /api/boss/2/authorize", boss2.Authorize)
+	mux.HandleFunc("POST /api/boss/2/callback", boss2.Callback)
+	mux.HandleFunc("POST /api/boss/2/attack", boss2.Attack)
+	mux.HandleFunc("POST /api/boss/2/verify", boss2.Verify)
+	mux.HandleFunc("POST /api/boss/2/generate-state", boss2.GenerateState)
+
 	handler := middleware.CORS(mux)
 
 	log.Printf("Server starting on :%s", port)
