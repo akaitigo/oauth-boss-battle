@@ -4,6 +4,7 @@ import { Boss1Page } from "./bosses/boss1/Boss1Page";
 import { Boss2Page } from "./bosses/boss2/Boss2Page";
 import { Boss3Page } from "./bosses/boss3/Boss3Page";
 import { Boss4Page } from "./bosses/boss4/Boss4Page";
+import { Boss5Page } from "./bosses/boss5/Boss5Page";
 
 export function App() {
 	return (
@@ -14,6 +15,7 @@ export function App() {
 				<Route path="/boss/2" element={<Boss2Page />} />
 				<Route path="/boss/3" element={<Boss3Page />} />
 				<Route path="/boss/4" element={<Boss4Page />} />
+				<Route path="/boss/5" element={<Boss5Page />} />
 			</Routes>
 		</BrowserRouter>
 	);
