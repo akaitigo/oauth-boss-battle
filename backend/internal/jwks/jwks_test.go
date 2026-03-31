@@ -1,6 +1,7 @@
 package jwks_test
 
 import (
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -133,13 +134,20 @@ func TestCache_Smart(t *testing.T) {
 }
 
 func TestMarshalAndParseToken(t *testing.T) {
+	ks, _ := jwks.NewKeyStore()
 	payload := []byte(`{"sub":"user-123"}`)
-	kid := "test-key-1"
-	sig := "test-signature"
+	kid := ks.CurrentKid()
 
-	tok := jwks.MarshalToken(payload, kid, sig)
+	signer := func(data []byte) (string, error) {
+		return ks.SignWithKid(data, kid)
+	}
 
-	parsedKid, parsedPayload, parsedSig, err := jwks.ParseToken(tok)
+	tok, err := jwks.MarshalToken(payload, kid, signer)
+	if err != nil {
+		t.Fatalf("MarshalToken() error = %v", err)
+	}
+
+	parsedKid, parsedPayload, signingInput, parsedSig, err := jwks.ParseToken(tok)
 	if err != nil {
 		t.Fatalf("ParseToken() error = %v", err)
 	}
@@ -150,16 +158,75 @@ func TestMarshalAndParseToken(t *testing.T) {
 	if string(parsedPayload) != string(payload) {
 		t.Errorf("payload = %q, want %q", parsedPayload, payload)
 	}
-	if parsedSig != sig {
-		t.Errorf("sig = %q, want %q", parsedSig, sig)
+	if parsedSig == "" {
+		t.Error("expected non-empty signature")
+	}
+
+	// Signature must verify against the signing input (header.payload)
+	if err := ks.VerifyWithKid([]byte(signingInput), kid, parsedSig); err != nil {
+		t.Errorf("signature verification failed: %v", err)
 	}
 }
 
 func TestParseToken_Invalid(t *testing.T) {
-	_, _, _, err := jwks.ParseToken("not-a-token")
+	_, _, _, _, err := jwks.ParseToken("not-a-token")
 	if err != jwks.ErrTokenFormat {
 		t.Errorf("expected ErrTokenFormat, got %v", err)
 	}
+}
+
+func TestMarshalToken_HeaderTamperDetected(t *testing.T) {
+	ks, _ := jwks.NewKeyStore()
+	payload := []byte(`{"sub":"victim"}`)
+	kid := ks.CurrentKid()
+
+	signer := func(data []byte) (string, error) {
+		return ks.SignWithKid(data, kid)
+	}
+
+	tok, err := jwks.MarshalToken(payload, kid, signer)
+	if err != nil {
+		t.Fatalf("MarshalToken() error = %v", err)
+	}
+
+	// Tamper with the header: replace alg with "none"
+	_, _, _, originalSig, err := jwks.ParseToken(tok)
+	if err != nil {
+		t.Fatalf("ParseToken() error = %v", err)
+	}
+
+	// Build a tampered token with alg=none but keep original signature
+	tamperedHeader := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT","kid":"` + kid + `"}`))
+	originalParts := splitTestToken(tok)
+	tamperedToken := tamperedHeader + "." + originalParts[1] + "." + originalSig
+
+	// Parse the tampered token
+	tamperedKid, _, tamperedSigningInput, tamperedSig, err := jwks.ParseToken(tamperedToken)
+	if err != nil {
+		t.Fatalf("ParseToken(tampered) error = %v", err)
+	}
+
+	// Verification MUST fail because header was tampered
+	err = ks.VerifyWithKid([]byte(tamperedSigningInput), tamperedKid, tamperedSig)
+	if err == nil {
+		t.Fatal("expected signature verification to fail after header tampering, but it succeeded")
+	}
+	if err != jwks.ErrSignature {
+		t.Errorf("expected ErrSignature, got %v", err)
+	}
+}
+
+func splitTestToken(s string) []string {
+	var parts []string
+	start := 0
+	for i := range len(s) {
+		if s[i] == '.' {
+			parts = append(parts, s[start:i])
+			start = i + 1
+		}
+	}
+	parts = append(parts, s[start:])
+	return parts
 }
 
 func TestRevokeOldest_LastKey(t *testing.T) {

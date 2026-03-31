@@ -260,8 +260,12 @@ func (c *Cache) Info() map[string]interface{} {
 	}
 }
 
-// MarshalToken creates a simple signed token with kid header.
-func MarshalToken(payload []byte, kid, signature string) string {
+// Signer signs data and returns a base64url-encoded signature.
+type Signer func(data []byte) (string, error)
+
+// MarshalToken creates a JWS-compliant signed token.
+// The signature covers base64url(header) + "." + base64url(payload) per RFC 7515.
+func MarshalToken(payload []byte, kid string, sign Signer) (string, error) {
 	header, _ := json.Marshal(map[string]string{
 		"alg": "RS256",
 		"typ": "JWT",
@@ -269,32 +273,42 @@ func MarshalToken(payload []byte, kid, signature string) string {
 	})
 	headerB64 := base64.RawURLEncoding.EncodeToString(header)
 	payloadB64 := base64.RawURLEncoding.EncodeToString(payload)
-	return headerB64 + "." + payloadB64 + "." + signature
+	signingInput := headerB64 + "." + payloadB64
+
+	signature, err := sign([]byte(signingInput))
+	if err != nil {
+		return "", fmt.Errorf("sign token: %w", err)
+	}
+
+	return signingInput + "." + signature, nil
 }
 
-// ParseToken extracts kid, payload, and signature from a signed token.
-func ParseToken(tokenStr string) (kid string, payload []byte, signature string, err error) {
+// ParseToken extracts kid, payload, signing input, and signature from a signed token.
+// signingInput is base64url(header) + "." + base64url(payload), which must be used for
+// signature verification per JWS (RFC 7515).
+func ParseToken(tokenStr string) (kid string, payload []byte, signingInput string, signature string, err error) {
 	parts := splitToken(tokenStr)
 	if len(parts) != 3 {
-		return "", nil, "", ErrTokenFormat
+		return "", nil, "", "", ErrTokenFormat
 	}
 
 	headerBytes, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return "", nil, "", fmt.Errorf("decode header: %w", err)
+		return "", nil, "", "", fmt.Errorf("decode header: %w", err)
 	}
 
 	var header map[string]string
 	if err := json.Unmarshal(headerBytes, &header); err != nil {
-		return "", nil, "", fmt.Errorf("parse header: %w", err)
+		return "", nil, "", "", fmt.Errorf("parse header: %w", err)
 	}
 
 	payload, err = base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", nil, "", fmt.Errorf("decode payload: %w", err)
+		return "", nil, "", "", fmt.Errorf("decode payload: %w", err)
 	}
 
-	return header["kid"], payload, parts[2], nil
+	signingInput = parts[0] + "." + parts[1]
+	return header["kid"], payload, signingInput, parts[2], nil
 }
 
 func splitToken(s string) []string {

@@ -1,7 +1,6 @@
 package boss
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -150,7 +149,10 @@ func (h *Boss4Handler) Sign(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		oldKid := jwkSet.Keys[0].Kid
-		sig, err := h.keyStore.SignWithKid(payloadBytes, oldKid)
+		signer := func(data []byte) (string, error) {
+			return h.keyStore.SignWithKid(data, oldKid)
+		}
+		tok, err := jwks.MarshalToken(payloadBytes, oldKid, signer)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, BossResult{
 				Success: false,
@@ -158,7 +160,6 @@ func (h *Boss4Handler) Sign(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		tok := jwks.MarshalToken(payloadBytes, oldKid, sig)
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"success": true,
 			"token":   tok,
@@ -168,7 +169,11 @@ func (h *Boss4Handler) Sign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	kid, sig, err := h.keyStore.Sign(payloadBytes)
+	currentKid := h.keyStore.CurrentKid()
+	signer := func(data []byte) (string, error) {
+		return h.keyStore.SignWithKid(data, currentKid)
+	}
+	tok, err := jwks.MarshalToken(payloadBytes, currentKid, signer)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, BossResult{
 			Success: false,
@@ -177,11 +182,10 @@ func (h *Boss4Handler) Sign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tok := jwks.MarshalToken(payloadBytes, kid, sig)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"token":   tok,
-		"kid":     kid,
+		"kid":     currentKid,
 		"message": "Token signed with current key.",
 	})
 }
@@ -205,7 +209,7 @@ func (h *Boss4Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	kid, payload, sig, err := jwks.ParseToken(req.Token)
+	kid, payload, signingInput, sig, err := jwks.ParseToken(req.Token)
 	if err != nil {
 		writeJSON(w, http.StatusOK, BossResult{
 			Success: false,
@@ -233,9 +237,8 @@ func (h *Boss4Handler) Verify(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Verify against actual key store
-			headerPayload := rebuildHeaderPayload(req.Token)
-			if verifyErr := h.keyStore.VerifyWithKid([]byte(headerPayload), kid, sig); verifyErr != nil {
+			// Verify against actual key store using the full signing input (header.payload)
+			if verifyErr := h.keyStore.VerifyWithKid([]byte(signingInput), kid, sig); verifyErr != nil {
 				writeJSON(w, http.StatusOK, BossResult{
 					Success: false,
 					Message: "Signature verification failed: " + verifyErr.Error(),
@@ -269,9 +272,8 @@ func (h *Boss4Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Key found in cache — verify signature
-	headerPayload := rebuildHeaderPayload(req.Token)
-	if verifyErr := h.keyStore.VerifyWithKid([]byte(headerPayload), kid, sig); verifyErr != nil {
+	// Key found in cache — verify signature using the full signing input (header.payload)
+	if verifyErr := h.keyStore.VerifyWithKid([]byte(signingInput), kid, sig); verifyErr != nil {
 		writeJSON(w, http.StatusOK, BossResult{
 			Success: false,
 			Message: "Signature verification failed: " + verifyErr.Error(),
@@ -315,45 +317,4 @@ func (h *Boss4Handler) ConfigureCache(w http.ResponseWriter, r *http.Request) {
 		"cache_state": h.cache.Info(),
 		"message":     "Cache strategy updated to: " + mode,
 	})
-}
-
-// rebuildHeaderPayload extracts the header.payload portion for signature verification.
-func rebuildHeaderPayload(tok string) string {
-	// Find the last dot to separate header.payload from signature
-	lastDot := 0
-	dots := 0
-	for i := range len(tok) {
-		if tok[i] == '.' {
-			dots++
-			if dots == 2 {
-				lastDot = i
-				break
-			}
-		}
-	}
-	if lastDot > 0 {
-		// We need to decode header and payload, then use raw payload bytes
-		// For verification, we sign the raw payload bytes
-		parts := splitTokenParts(tok)
-		if len(parts) == 3 {
-			payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
-			if err == nil {
-				return string(payloadBytes)
-			}
-		}
-	}
-	return tok
-}
-
-func splitTokenParts(s string) []string {
-	var parts []string
-	start := 0
-	for i := range len(s) {
-		if s[i] == '.' {
-			parts = append(parts, s[start:i])
-			start = i + 1
-		}
-	}
-	parts = append(parts, s[start:])
-	return parts
 }
