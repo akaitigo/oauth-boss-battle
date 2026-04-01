@@ -55,6 +55,8 @@ func NewBoss2Handler() *Boss2Handler {
 
 // Authorize simulates the /authorize endpoint.
 func (h *Boss2Handler) Authorize(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss2AuthorizeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -103,6 +105,8 @@ func (h *Boss2Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 
 // Callback simulates the OAuth callback with state validation.
 func (h *Boss2Handler) Callback(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss2CallbackRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -171,6 +175,8 @@ func (h *Boss2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 
 // Attack simulates the attacker's perspective of the CSRF attack.
 func (h *Boss2Handler) Attack(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss2AttackRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -206,6 +212,8 @@ func (h *Boss2Handler) Attack(w http.ResponseWriter, r *http.Request) {
 
 // Verify checks the boss defeat condition.
 func (h *Boss2Handler) Verify(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss2VerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{

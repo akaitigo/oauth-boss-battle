@@ -64,6 +64,8 @@ func (h *Boss4Handler) JWKS(w http.ResponseWriter, _ *http.Request) {
 
 // Rotate triggers a key rotation.
 func (h *Boss4Handler) Rotate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss4RotateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -122,6 +124,8 @@ func (h *Boss4Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 
 // Sign creates a signed token.
 func (h *Boss4Handler) Sign(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss4SignRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -192,6 +196,8 @@ func (h *Boss4Handler) Sign(w http.ResponseWriter, r *http.Request) {
 
 // Verify verifies a signed token using the cache.
 func (h *Boss4Handler) Verify(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss4VerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -292,6 +298,8 @@ func (h *Boss4Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 // ConfigureCache sets the cache strategy.
 func (h *Boss4Handler) ConfigureCache(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss4CacheConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{

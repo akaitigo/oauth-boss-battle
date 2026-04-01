@@ -65,6 +65,8 @@ func NewBoss1Handler() *Boss1Handler {
 // Authorize simulates the /authorize endpoint.
 // Without PKCE parameters, it returns an authorization code but flags the vulnerability.
 func (h *Boss1Handler) Authorize(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req AuthorizeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -115,6 +117,8 @@ func (h *Boss1Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 // Token simulates the /token endpoint.
 // Without a valid code_verifier, the attack succeeds (bad outcome for the user).
 func (h *Boss1Handler) Token(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -183,6 +187,8 @@ func (h *Boss1Handler) Token(w http.ResponseWriter, r *http.Request) {
 
 // Verify is a simplified check endpoint for the boss defeat condition.
 func (h *Boss1Handler) Verify(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req VerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{

@@ -48,6 +48,8 @@ func NewBoss5Handler() *Boss5Handler {
 
 // Login simulates user login and creates sessions at multiple RPs.
 func (h *Boss5Handler) Login(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss5LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -84,6 +86,8 @@ func (h *Boss5Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Sessions returns the current session state for all RPs.
 func (h *Boss5Handler) Sessions(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss5SessionsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -114,6 +118,8 @@ func (h *Boss5Handler) Sessions(w http.ResponseWriter, r *http.Request) {
 
 // LogoutFrontChannel simulates front-channel logout (unreliable).
 func (h *Boss5Handler) LogoutFrontChannel(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss5LogoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -154,6 +160,8 @@ func (h *Boss5Handler) LogoutFrontChannel(w http.ResponseWriter, r *http.Request
 
 // LogoutBackChannel simulates back-channel logout (reliable).
 func (h *Boss5Handler) LogoutBackChannel(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss5LogoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -194,6 +202,8 @@ func (h *Boss5Handler) LogoutBackChannel(w http.ResponseWriter, r *http.Request)
 
 // Verify checks the boss defeat condition.
 func (h *Boss5Handler) Verify(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss5VerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{

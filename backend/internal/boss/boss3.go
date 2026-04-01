@@ -76,6 +76,8 @@ func (h *Boss3Handler) GenerateNonce(w http.ResponseWriter, _ *http.Request) {
 
 // Authorize simulates the /authorize endpoint with optional nonce.
 func (h *Boss3Handler) Authorize(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss3AuthorizeRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -124,6 +126,8 @@ func (h *Boss3Handler) Authorize(w http.ResponseWriter, r *http.Request) {
 
 // Token simulates the /token endpoint, returning an ID Token.
 func (h *Boss3Handler) Token(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss3TokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -218,6 +222,8 @@ func (h *Boss3Handler) Token(w http.ResponseWriter, r *http.Request) {
 
 // Replay simulates replaying a captured ID Token.
 func (h *Boss3Handler) Replay(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss3ReplayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -291,6 +297,8 @@ func (h *Boss3Handler) Replay(w http.ResponseWriter, r *http.Request) {
 
 // Verify checks the boss defeat condition.
 func (h *Boss3Handler) Verify(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	var req Boss3VerifyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, BossResult{
