@@ -233,11 +233,15 @@ func (c *Cache) IsStale() bool {
 
 // IsSmart returns whether kid-based refresh is enabled.
 func (c *Cache) IsSmart() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.smart
 }
 
 // SetSmart enables or disables kid-based refresh.
 func (c *Cache) SetSmart(smart bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.smart = smart
 }
 
