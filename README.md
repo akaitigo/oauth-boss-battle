@@ -64,7 +64,7 @@ docker compose ps
 ```bash
 # バックエンド
 cd backend
-go run ./cmd/oauth-boss-battle
+go run ./cmd/server
 
 # フロントエンド（別ターミナル）
 cd frontend
