@@ -136,6 +136,63 @@ func TestBoss2_FullFlow_WithState_BossDefeated(t *testing.T) {
 	}
 }
 
+func TestBoss2_Callback_CrossSessionStateBypass_Blocked(t *testing.T) {
+	h := boss.NewBoss2Handler()
+
+	// Attacker generates their own state via the state store
+	genReq := httptest.NewRequest(http.MethodPost, "/api/boss/2/generate-state", nil)
+	genRec := httptest.NewRecorder()
+	h.GenerateState(genRec, genReq)
+
+	var attackerStateResp map[string]string
+	if err := json.NewDecoder(genRec.Body).Decode(&attackerStateResp); err != nil {
+		t.Fatalf("decode attacker state response: %v", err)
+	}
+	attackerState := attackerStateResp["state"]
+
+	// Victim generates their own state
+	genReq2 := httptest.NewRequest(http.MethodPost, "/api/boss/2/generate-state", nil)
+	genRec2 := httptest.NewRecorder()
+	h.GenerateState(genRec2, genReq2)
+
+	var victimStateResp map[string]string
+	if err := json.NewDecoder(genRec2.Body).Decode(&victimStateResp); err != nil {
+		t.Fatalf("decode victim state response: %v", err)
+	}
+	victimState := victimStateResp["state"]
+
+	// Victim authorizes with their own state (bound to session)
+	authBody := mustJSON(t, boss.Boss2AuthorizeRequest{
+		ClientID: "victim-client",
+		State:    victimState,
+	})
+	authReq := httptest.NewRequest(http.MethodPost, "/api/boss/2/authorize", authBody)
+	authRec := httptest.NewRecorder()
+	h.Authorize(authRec, authReq)
+
+	var authResult boss.BossResult
+	mustDecode(t, authRec, &authResult)
+
+	// Attacker tries to bypass by supplying their own state as both
+	// original_state and returned_state on the victim's authorization code.
+	// Before the fix, this would succeed because req.OriginalState was trusted.
+	callbackBody := mustJSON(t, boss.Boss2CallbackRequest{
+		Code:          authResult.Code,
+		ReturnedState: attackerState,
+		OriginalState: attackerState,
+	})
+	callbackReq := httptest.NewRequest(http.MethodPost, "/api/boss/2/callback", callbackBody)
+	callbackRec := httptest.NewRecorder()
+	h.Callback(callbackRec, callbackReq)
+
+	var callbackResult boss.BossResult
+	mustDecode(t, callbackRec, &callbackResult)
+
+	if callbackResult.Defeated {
+		t.Error("expected boss NOT to be defeated when attacker uses cross-session state bypass")
+	}
+}
+
 func TestBoss2_Attack_WithState_Blocked(t *testing.T) {
 	h := boss.NewBoss2Handler()
 

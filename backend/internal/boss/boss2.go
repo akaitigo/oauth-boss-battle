@@ -143,8 +143,9 @@ func (h *Boss2Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// State validation
-	if err := h.stateStore.Validate(req.OriginalState, req.ReturnedState); err != nil {
+	// State validation: use the server-side session state (not the client-supplied OriginalState)
+	// to prevent bypass attacks where an attacker supplies their own state as both values.
+	if err := h.stateStore.Validate(session.State, req.ReturnedState); err != nil {
 		writeJSON(w, http.StatusOK, BossResult{
 			Success:  true,
 			Defeated: false,
