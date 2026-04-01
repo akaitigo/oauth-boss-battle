@@ -8,10 +8,7 @@ import (
 	"sync"
 )
 
-var (
-	ErrSessionNotFound  = errors.New("session not found")
-	ErrAlreadyLoggedOut = errors.New("session already logged out")
-)
+var ErrSessionNotFound = errors.New("session not found")
 
 // RPSession represents a session at a Relying Party.
 type RPSession struct {

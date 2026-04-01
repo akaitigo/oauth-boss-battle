@@ -32,8 +32,7 @@ type Boss4VerifyRequest struct {
 
 // Boss4CacheConfigRequest configures the cache strategy.
 type Boss4CacheConfigRequest struct {
-	SmartMode  bool `json:"smart_mode"`
-	TTLSeconds int  `json:"ttl_seconds"`
+	SmartMode bool `json:"smart_mode"`
 }
 
 // NewBoss4Handler creates a new Boss4Handler.
