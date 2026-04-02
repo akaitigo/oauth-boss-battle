@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/akaitigo/oauth-boss-battle/backend/internal/boss"
 	"github.com/akaitigo/oauth-boss-battle/backend/internal/middleware"
@@ -64,8 +65,16 @@ func main() {
 
 	handler := middleware.CORS(mux)
 
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
 	log.Printf("Server starting on :%s", port)
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 var (
@@ -14,16 +15,47 @@ var (
 	ErrStateExpired  = errors.New("state parameter has already been consumed or expired")
 )
 
+const defaultTTL = 10 * time.Minute
+
+type stateEntry struct {
+	consumed  bool
+	createdAt time.Time
+}
+
 // Store manages state parameters for CSRF protection in the OAuth flow.
 type Store struct {
 	mu     sync.RWMutex
-	states map[string]bool // state -> consumed
+	states map[string]*stateEntry
+	ttl    time.Duration
 }
 
-// NewStore creates a new state store.
+// NewStore creates a new state store with TTL-based eviction.
 func NewStore() *Store {
-	return &Store{
-		states: make(map[string]bool),
+	s := &Store{
+		states: make(map[string]*stateEntry),
+		ttl:    defaultTTL,
+	}
+	go s.evictLoop()
+	return s
+}
+
+// evictLoop periodically removes expired entries.
+func (s *Store) evictLoop() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.evict()
+	}
+}
+
+func (s *Store) evict() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for k, entry := range s.states {
+		if now.Sub(entry.createdAt) > s.ttl {
+			delete(s.states, k)
+		}
 	}
 }
 
@@ -37,7 +69,7 @@ func (s *Store) Generate() (string, error) {
 	state := hex.EncodeToString(b)
 
 	s.mu.Lock()
-	s.states[state] = false
+	s.states[state] = &stateEntry{consumed: false, createdAt: time.Now()}
 	s.mu.Unlock()
 
 	return state, nil
@@ -56,16 +88,20 @@ func (s *Store) Validate(expected, actual string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	consumed, exists := s.states[expected]
+	entry, exists := s.states[expected]
 	if !exists {
 		return ErrStateExpired
 	}
-	if consumed {
+	if entry.consumed {
+		return ErrStateExpired
+	}
+	if time.Since(entry.createdAt) > s.ttl {
+		delete(s.states, expected)
 		return ErrStateExpired
 	}
 
 	// Mark as consumed (one-time use)
-	s.states[expected] = true
+	entry.consumed = true
 	return nil
 }
 
@@ -73,6 +109,9 @@ func (s *Store) Validate(expected, actual string) error {
 func (s *Store) IsIssued(state string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	_, exists := s.states[state]
-	return exists
+	entry, exists := s.states[state]
+	if !exists {
+		return false
+	}
+	return time.Since(entry.createdAt) <= s.ttl
 }

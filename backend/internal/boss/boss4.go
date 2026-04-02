@@ -3,6 +3,7 @@ package boss
 import (
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/akaitigo/oauth-boss-battle/backend/internal/jwks"
@@ -10,8 +11,10 @@ import (
 
 // Boss4Handler handles the JWKS Rotation Failure boss stage.
 type Boss4Handler struct {
-	keyStore *jwks.KeyStore
-	cache    *jwks.Cache
+	keyStore    *jwks.KeyStore
+	cache       *jwks.Cache
+	rotateMu    sync.Mutex
+	lastRotated time.Time
 }
 
 // Boss4RotateRequest configures rotation behavior.
@@ -62,6 +65,7 @@ func (h *Boss4Handler) JWKS(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Rotate triggers a key rotation.
+// Rate-limited to at most once per second to prevent RSA key generation abuse.
 func (h *Boss4Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
@@ -73,6 +77,19 @@ func (h *Boss4Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Rate limit: 1 rotation per second
+	h.rotateMu.Lock()
+	if elapsed := time.Since(h.lastRotated); elapsed < time.Second {
+		h.rotateMu.Unlock()
+		writeJSON(w, http.StatusTooManyRequests, BossResult{
+			Success: false,
+			Message: "Key rotation is rate-limited to once per second. Please wait before retrying.",
+		})
+		return
+	}
+	h.lastRotated = time.Now()
+	h.rotateMu.Unlock()
 
 	oldKid := h.keyStore.CurrentKid()
 

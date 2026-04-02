@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 var (
@@ -14,16 +15,47 @@ var (
 	ErrNonceUnknown  = errors.New("nonce was not issued by this server")
 )
 
+const defaultTTL = 10 * time.Minute
+
+type nonceEntry struct {
+	consumed  bool
+	createdAt time.Time
+}
+
 // Store manages nonce parameters for ID Token replay protection.
 type Store struct {
 	mu     sync.RWMutex
-	nonces map[string]bool // nonce -> consumed
+	nonces map[string]*nonceEntry
+	ttl    time.Duration
 }
 
-// NewStore creates a new nonce store.
+// NewStore creates a new nonce store with TTL-based eviction.
 func NewStore() *Store {
-	return &Store{
-		nonces: make(map[string]bool),
+	s := &Store{
+		nonces: make(map[string]*nonceEntry),
+		ttl:    defaultTTL,
+	}
+	go s.evictLoop()
+	return s
+}
+
+// evictLoop periodically removes expired entries.
+func (s *Store) evictLoop() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.evict()
+	}
+}
+
+func (s *Store) evict() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for k, entry := range s.nonces {
+		if now.Sub(entry.createdAt) > s.ttl {
+			delete(s.nonces, k)
+		}
 	}
 }
 
@@ -37,7 +69,7 @@ func (s *Store) Generate() (string, error) {
 	n := hex.EncodeToString(b)
 
 	s.mu.Lock()
-	s.nonces[n] = false
+	s.nonces[n] = &nonceEntry{consumed: false, createdAt: time.Now()}
 	s.mu.Unlock()
 
 	return n, nil
@@ -52,15 +84,19 @@ func (s *Store) Consume(n string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	consumed, exists := s.nonces[n]
+	entry, exists := s.nonces[n]
 	if !exists {
 		return ErrNonceUnknown
 	}
-	if consumed {
+	if entry.consumed {
 		return ErrNonceConsumed
 	}
+	if time.Since(entry.createdAt) > s.ttl {
+		delete(s.nonces, n)
+		return ErrNonceUnknown
+	}
 
-	s.nonces[n] = true
+	entry.consumed = true
 	return nil
 }
 
@@ -68,6 +104,6 @@ func (s *Store) Consume(n string) error {
 func (s *Store) IsConsumed(n string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	consumed, exists := s.nonces[n]
-	return exists && consumed
+	entry, exists := s.nonces[n]
+	return exists && entry.consumed
 }

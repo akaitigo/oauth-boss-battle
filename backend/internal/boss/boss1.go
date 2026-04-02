@@ -128,9 +128,13 @@ func (h *Boss1Handler) Token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.mu.RLock()
+	// Use write lock for atomic lookup + delete to prevent TOCTOU race
+	h.mu.Lock()
 	session, exists := h.codes[req.Code]
-	h.mu.RUnlock()
+	if exists {
+		delete(h.codes, req.Code)
+	}
+	h.mu.Unlock()
 
 	if !exists {
 		writeJSON(w, http.StatusBadRequest, BossResult{
@@ -139,11 +143,6 @@ func (h *Boss1Handler) Token(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	// Clean up used code
-	h.mu.Lock()
-	delete(h.codes, req.Code)
-	h.mu.Unlock()
 
 	// No PKCE was used during authorization — attack succeeds
 	if session.CodeChallenge == "" {
