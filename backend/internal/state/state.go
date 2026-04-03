@@ -15,7 +15,12 @@ var (
 	ErrStateExpired  = errors.New("state parameter has already been consumed or expired")
 )
 
-const defaultTTL = 10 * time.Minute
+const (
+	defaultTTL    = 10 * time.Minute
+	defaultMaxCap = 10000
+)
+
+var ErrStoreFull = errors.New("state store is at capacity; try again later")
 
 type stateEntry struct {
 	consumed  bool
@@ -27,13 +32,15 @@ type Store struct {
 	mu     sync.RWMutex
 	states map[string]*stateEntry
 	ttl    time.Duration
+	maxCap int
 }
 
-// NewStore creates a new state store with TTL-based eviction.
+// NewStore creates a new state store with TTL-based eviction and a max entry cap.
 func NewStore() *Store {
 	s := &Store{
 		states: make(map[string]*stateEntry),
 		ttl:    defaultTTL,
+		maxCap: defaultMaxCap,
 	}
 	go s.evictLoop()
 	return s
@@ -69,6 +76,16 @@ func (s *Store) Generate() (string, error) {
 	state := hex.EncodeToString(b)
 
 	s.mu.Lock()
+	if len(s.states) >= s.maxCap {
+		s.mu.Unlock()
+		// Try eviction first, then re-check
+		s.evict()
+		s.mu.Lock()
+		if len(s.states) >= s.maxCap {
+			s.mu.Unlock()
+			return "", ErrStoreFull
+		}
+	}
 	s.states[state] = &stateEntry{consumed: false, createdAt: time.Now()}
 	s.mu.Unlock()
 

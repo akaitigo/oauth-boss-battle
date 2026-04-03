@@ -15,7 +15,12 @@ var (
 	ErrNonceUnknown  = errors.New("nonce was not issued by this server")
 )
 
-const defaultTTL = 10 * time.Minute
+const (
+	defaultTTL    = 10 * time.Minute
+	defaultMaxCap = 10000
+)
+
+var ErrStoreFull = errors.New("nonce store is at capacity; try again later")
 
 type nonceEntry struct {
 	consumed  bool
@@ -27,13 +32,15 @@ type Store struct {
 	mu     sync.RWMutex
 	nonces map[string]*nonceEntry
 	ttl    time.Duration
+	maxCap int
 }
 
-// NewStore creates a new nonce store with TTL-based eviction.
+// NewStore creates a new nonce store with TTL-based eviction and a max entry cap.
 func NewStore() *Store {
 	s := &Store{
 		nonces: make(map[string]*nonceEntry),
 		ttl:    defaultTTL,
+		maxCap: defaultMaxCap,
 	}
 	go s.evictLoop()
 	return s
@@ -69,6 +76,16 @@ func (s *Store) Generate() (string, error) {
 	n := hex.EncodeToString(b)
 
 	s.mu.Lock()
+	if len(s.nonces) >= s.maxCap {
+		s.mu.Unlock()
+		// Try eviction first, then re-check
+		s.evict()
+		s.mu.Lock()
+		if len(s.nonces) >= s.maxCap {
+			s.mu.Unlock()
+			return "", ErrStoreFull
+		}
+	}
 	s.nonces[n] = &nonceEntry{consumed: false, createdAt: time.Now()}
 	s.mu.Unlock()
 

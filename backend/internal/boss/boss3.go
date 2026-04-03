@@ -153,34 +153,43 @@ func (h *Boss3Handler) Token(w http.ResponseWriter, r *http.Request) {
 	delete(h.sessions, req.Code)
 	h.mu.Unlock()
 
-	idToken, err := h.signer.Issue(session.Subject, "demo-client", session.Nonce)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, BossResult{
-			Success: false,
-			Message: "Failed to issue ID Token",
-		})
-		return
-	}
-
-	// If nonce was provided, validate and consume it
+	// If nonce was provided, validate and consume BEFORE issuing token.
+	// This prevents leaking a valid token when nonce verification fails.
 	if session.Nonce != "" && req.ExpectedNonce != "" {
 		if err := h.nonceStore.Consume(req.ExpectedNonce); err != nil {
-			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"success":  true,
-				"id_token": idToken,
-				"message":  "ID Token issued but nonce validation failed: " + err.Error(),
-				"warning":  "The nonce could not be consumed. This may indicate a replay.",
+			writeJSON(w, http.StatusBadRequest, BossResult{
+				Success: false,
+				Message: "Nonce validation failed: " + err.Error() + ". Token not issued.",
+				Explanation: "The nonce could not be consumed. This may indicate a replay attack. " +
+					"No token is issued to prevent leaking credentials on failed nonce verification.",
 			})
 			return
 		}
 
-		// Verify nonce in token matches expected
+		// Verify session nonce matches expected nonce
+		if session.Nonce != req.ExpectedNonce {
+			writeJSON(w, http.StatusBadRequest, BossResult{
+				Success: false,
+				Message: "Nonce mismatch: session nonce does not match expected nonce. Token not issued.",
+			})
+			return
+		}
+
+		idToken, err := h.signer.Issue(session.Subject, "demo-client", session.Nonce)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, BossResult{
+				Success: false,
+				Message: "Failed to issue ID Token",
+			})
+			return
+		}
+
+		// Final verification: nonce in the issued token matches expected
 		_, verifyErr := h.signer.VerifyWithNonce(idToken, req.ExpectedNonce)
 		if verifyErr != nil {
-			writeJSON(w, http.StatusOK, map[string]interface{}{
-				"success":  true,
-				"id_token": idToken,
-				"message":  "ID Token issued but nonce mismatch: " + verifyErr.Error(),
+			writeJSON(w, http.StatusInternalServerError, BossResult{
+				Success: false,
+				Message: "Internal error: token nonce verification failed after issuance",
 			})
 			return
 		}
@@ -198,6 +207,15 @@ func (h *Boss3Handler) Token(w http.ResponseWriter, r *http.Request) {
 				"5. Validated: RP verifies nonce matches session\n" +
 				"6. Consumed: nonce marked as used (one-time)",
 			"rfc_link": "https://openid.net/specs/openid-connect-core-1_0.html#NonceNotes",
+		})
+		return
+	}
+
+	idToken, err := h.signer.Issue(session.Subject, "demo-client", session.Nonce)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, BossResult{
+			Success: false,
+			Message: "Failed to issue ID Token",
 		})
 		return
 	}
